@@ -1,5 +1,6 @@
 //! OpenType layout.
 
+use super::shape_hook::{ShapeEvent, ShapeTable};
 use core::ops::{Index, IndexMut};
 
 use super::buffer::*;
@@ -108,6 +109,14 @@ impl TableIndex {
     pub fn iter() -> impl Iterator<Item = TableIndex> {
         [Self::GSUB, Self::GPOS].iter().copied()
     }
+
+    /// The table as a [`ShapeHook`](super::shape_hook::ShapeHook) names it.
+    pub fn shape_table(self) -> ShapeTable {
+        match self {
+            Self::GSUB => ShapeTable::Gsub,
+            Self::GPOS => ShapeTable::Gpos,
+        }
+    }
 }
 
 impl<T> Index<TableIndex> for [T] {
@@ -151,6 +160,11 @@ pub fn apply_layout_table<T: LayoutTable>(
     table: Option<&T>,
 ) {
     let mut ctx = OT::hb_ot_apply_context_t::new(T::INDEX, face, *font_funcs.scale(), buffer);
+    let shape_table = T::INDEX.shape_table();
+    let hooked = font_funcs.has_hook();
+    if hooked {
+        font_funcs.notify(ShapeEvent::StartTable(shape_table), ctx.buffer);
+    }
 
     for (stage_index, stage) in plan.ot_map.stages(T::INDEX).iter().enumerate() {
         if let Some(table) = table {
@@ -158,6 +172,10 @@ pub fn apply_layout_table<T: LayoutTable>(
                 let Some(lookup) = table.get_lookup(lookup_map.index) else {
                     continue;
                 };
+                let (table, index) = (shape_table, lookup_map.index);
+                if hooked {
+                    font_funcs.notify(ShapeEvent::StartLookup { table, index }, ctx.buffer);
+                }
 
                 if lookup.digest().may_intersect(&ctx.buffer.digest) {
                     ctx.lookup_index = lookup_map.index;
@@ -170,6 +188,10 @@ pub fn apply_layout_table<T: LayoutTable>(
 
                     apply_string::<T>(&mut ctx, lookup);
                 }
+
+                if hooked {
+                    font_funcs.notify(ShapeEvent::EndLookup { table, index }, ctx.buffer);
+                }
             }
         }
 
@@ -178,6 +200,10 @@ pub fn apply_layout_table<T: LayoutTable>(
                 ctx.buffer.update_digest();
             }
         }
+    }
+
+    if hooked {
+        font_funcs.notify(ShapeEvent::EndTable(shape_table), ctx.buffer);
     }
 }
 

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+- Add `ShapeOptions::hook`: a `ShapeHook` told about each layout table and
+  lookup as shaping applies them (`ShapeEvent`), at the points HarfBuzz sends
+  buffer messages, with the buffer's glyphs and, while positioning, mutable
+  positions.
+
 ## [0.13.3] - 2026-08-25
 
 This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),

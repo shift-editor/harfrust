@@ -17,6 +17,7 @@ use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
+use super::shape_hook::ShapeHook;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
@@ -266,6 +267,7 @@ pub struct ShapeOptions<'a> {
     point_size: Option<f32>,
     features: &'a [Feature],
     font_funcs: Option<&'a mut (dyn FontFuncs + 'a)>,
+    hook: Option<&'a mut (dyn ShapeHook + 'a)>,
 }
 
 impl<'a> ShapeOptions<'a> {
@@ -333,6 +335,13 @@ impl<'a> ShapeOptions<'a> {
     /// Sets optional font functions used for shaping.
     pub fn font_funcs(mut self, funcs: Option<&'a mut (dyn FontFuncs + 'a)>) -> Self {
         self.font_funcs = funcs;
+        self
+    }
+
+    /// Sets an optional hook told about each layout table and lookup as
+    /// shaping applies them; see [`ShapeHook`].
+    pub fn hook(mut self, hook: Option<&'a mut (dyn ShapeHook + 'a)>) -> Self {
+        self.hook = hook;
         self
     }
 }
@@ -603,7 +612,8 @@ impl<'a> crate::Shaper<'a> {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
             let scale = Scale::new(options.scale, self.units_per_em as i32);
-            let mut font_funcs = FontFuncsDispatch::new(self, scale, options.font_funcs);
+            let mut font_funcs =
+                FontFuncsDispatch::new(self, scale, options.font_funcs, options.hook);
             OtShapeContext {
                 plan,
                 face: self,

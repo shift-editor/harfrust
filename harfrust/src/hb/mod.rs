@@ -68,6 +68,7 @@ mod ot_shaper_use_table;
 #[allow(clippy::collapsible_match)]
 mod ot_shaper_vowel_constraints;
 pub(crate) mod set_digest;
+pub mod shape_hook;
 mod tables;
 mod tag;
 #[allow(clippy::collapsible_match)]

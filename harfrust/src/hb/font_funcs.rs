@@ -12,6 +12,7 @@ use crate::hb::glyph_metrics::GlyphMetrics;
 
 use super::buffer::{hb_buffer_t, GlyphInfo, GlyphPosition};
 use super::face::{hb_font_t, GlyphExtents};
+use super::shape_hook::{ShapeEvent, ShapeHook, ShapeTable};
 
 /// Raw C-style view over a batch of glyph ids and advance widths.
 #[derive(Clone, Copy, Debug)]
@@ -397,6 +398,7 @@ pub(crate) struct FontFuncsDispatch<'a, 'u> {
     builtin: BuiltinFontFuncs<'a>,
     scale: Scale,
     funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
+    hook: Option<&'u mut (dyn ShapeHook + 'u)>,
 }
 
 impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
@@ -404,12 +406,37 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         face: &'a hb_font_t<'a>,
         scale: Scale,
         funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
+        hook: Option<&'u mut (dyn ShapeHook + 'u)>,
     ) -> Self {
         Self {
             builtin: BuiltinFontFuncs::new(face),
             scale,
             funcs,
+            hook,
         }
+    }
+
+    /// Whether a shape hook is set; shaping tells it about events only then.
+    #[inline(always)]
+    pub(crate) fn has_hook(&self) -> bool {
+        self.hook.is_some()
+    }
+
+    /// Tells the shape hook, if there is one, about `event` with `buffer`'s
+    /// glyphs; positions only while positioning. Kept out of line, so shaping
+    /// without a hook pays only the [`Self::has_hook`] check.
+    #[cold]
+    #[inline(never)]
+    pub(crate) fn notify(&mut self, event: ShapeEvent, buffer: &mut hb_buffer_t) {
+        let Some(hook) = self.hook.as_deref_mut() else {
+            return;
+        };
+        let len = buffer.len;
+        let positions: &mut [GlyphPosition] = match event.table() {
+            ShapeTable::Gpos => &mut buffer.pos[..len],
+            ShapeTable::Gsub => &mut [],
+        };
+        hook.event(event, &buffer.info[..len], positions);
     }
 
     #[inline(always)]

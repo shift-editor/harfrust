@@ -52,6 +52,7 @@ pub use hb::face::{
 };
 
 pub use hb::ot_shape_plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
+pub use hb::shape_hook::{ShapeEvent, ShapeHook, ShapeTable};
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;
